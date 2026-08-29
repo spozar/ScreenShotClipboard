@@ -10,9 +10,14 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 
-swiftc -O -target arm64-apple-macos13.0 \
-	-framework Cocoa -framework ServiceManagement \
-	-o "$BINARY" Sources/*.swift
+# Universal, so a downloaded release runs on Intel Macs as well as Apple Silicon.
+for ARCH in arm64 x86_64; do
+	swiftc -O -target "$ARCH-apple-macos13.0" \
+		-framework Cocoa -framework ServiceManagement \
+		-o "$BINARY.$ARCH" Sources/*.swift
+done
+lipo -create -output "$BINARY" "$BINARY.arm64" "$BINARY.x86_64"
+rm -f "$BINARY.arm64" "$BINARY.x86_64"
 
 # Ad-hoc signature: without a stable identity macOS re-asks for Desktop access every launch.
 codesign --force --sign - "$APP"

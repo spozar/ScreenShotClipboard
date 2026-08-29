@@ -53,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
+        for (index, line) in AppDelegate.aboutLines.enumerated() {
+            menu.addItem(AppDelegate.captionItem(line, heading: index == 0))
+        }
+        menu.addItem(.separator())
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -61,6 +65,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                 keyEquivalent: "q"))
         item.menu = menu
         statusItem = item
+    }
+
+    /// The status item is the only place to explain what the app does, since it has
+    /// no window and no preferences. Plain unclickable text, read once and ignored after.
+    private static var aboutLines: [String] {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        return [
+            "ScreenShotClipboard \(version)",
+            "Screenshots copy to your clipboard instantly",
+            "and still save to your Desktop.",
+            "Drag or close the preview to discard the file.",
+        ]
+    }
+
+    /// An item with no action is disabled by the menu's own auto-enabling, which is
+    /// exactly what a caption should be.
+    private static func captionItem(_ text: String, heading: Bool) -> NSMenuItem {
+        let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
+        let size = NSFont.smallSystemFontSize
+        item.attributedTitle = NSAttributedString(string: text, attributes: [
+            .font: heading ? NSFont.boldSystemFont(ofSize: size) : NSFont.systemFont(ofSize: size),
+            .foregroundColor: heading ? NSColor.labelColor : NSColor.secondaryLabelColor,
+        ])
+        return item
     }
 
     func menuWillOpen(_ menu: NSMenu) {
