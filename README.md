@@ -8,12 +8,7 @@ macOS gives you one or the other. ⌘⇧⌃4 copies without saving a file, and t
 
 1. Download `ScreenShotClipboard.zip` from the [latest release](https://github.com/spozar/ScreenShotClipboard/releases/latest).
 2. Unzip it and move `ScreenShotClipboard.app` into your Applications folder.
-3. Open it. macOS refuses the first time, because the app is not signed with a paid developer certificate. Go to System Settings > Privacy & Security, scroll to the bottom, and click "Open Anyway". Or do it in Terminal:
-
-   ```
-   xattr -dr com.apple.quarantine /Applications/ScreenShotClipboard.app
-   ```
-
+3. Open it. The app is signed and notarized, so it opens like any other. Allow Desktop access when macOS asks: that is where the screenshots land.
 4. Click the camera icon in the menu bar and switch on "Open at Login".
 
 Requires macOS 13 or later. Runs on Apple Silicon and Intel.
@@ -29,7 +24,14 @@ Take a screenshot the way you always have. A preview shows up in the bottom righ
 | Click the x | Goes to the Trash |
 | Click the preview | Opens it, file stays |
 
-The clipboard keeps the image in all four cases.
+The clipboard keeps the image in all four cases. Dragging hands the other app its own copy, so chat apps and browsers get the real image even though the Desktop file is gone.
+
+The menu bar icon has the settings:
+
+* **Show Preview** switches the preview off entirely. Screenshots still copy and save.
+* **Preview Position** puts it in any corner of the screen.
+* **Preview Duration** keeps it up for 3, 5, 10 or 30 seconds. Hovering over it holds it there.
+* **Trash File After Drag or Close** off keeps every file on the Desktop.
 
 ## Settings it changes
 
@@ -52,6 +54,25 @@ open ScreenShotClipboard.app
 ```
 
 Needs the Xcode Command Line Tools. No Xcode project, no dependencies.
+
+## Releasing
+
+```
+./release.sh
+```
+
+It builds, signs with your Developer ID certificate, sends the app to Apple for notarization, staples the ticket and leaves `ScreenShotClipboard.zip` ready to upload. People who download that zip open the app with a plain double click.
+
+It needs two things set up once:
+
+1. A "Developer ID Application" certificate in your keychain. Xcode > Settings > Accounts > Manage Certificates creates one.
+2. Notarization credentials saved under the name `notary`. Make an app-specific password at [appleid.apple.com](https://appleid.apple.com), then:
+
+   ```
+   xcrun notarytool store-credentials notary --apple-id you@example.com --team-id 99476Z45K6
+   ```
+
+The script checks both before it builds anything and tells you which one is missing.
 
 ## If a screenshot does not get copied
 

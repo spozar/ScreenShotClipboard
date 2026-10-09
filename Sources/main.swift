@@ -1,7 +1,7 @@
 import AppKit
 import ServiceManagement
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private var statusItem: NSStatusItem?
     private var watcher: ScreenshotWatcher?
     private var thumbnail: ThumbnailPanel?
@@ -9,6 +9,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let launchAtLoginItem = NSMenuItem(title: "Open at Login",
                                                action: #selector(toggleLaunchAtLogin(_:)),
                                                keyEquivalent: "")
+    private let showPreviewItem = NSMenuItem(title: "Show Preview",
+                                             action: #selector(toggleShowPreview(_:)),
+                                             keyEquivalent: "")
+    private let trashAfterUseItem = NSMenuItem(title: "Trash File After Drag or Close",
+                                               action: #selector(toggleTrashAfterUse(_:)),
+                                               keyEquivalent: "")
+    private var cornerItems: [NSMenuItem] = []
+    private var durationItems: [NSMenuItem] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // A menu bar app with no windows is a prime App Nap candidate, and napping
@@ -38,8 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Clipboard.copyImage(at: url)
         Log.debug("copied \(url.lastPathComponent) to the clipboard")
 
-        guard let image = NSImage(contentsOf: url) else { return }
+        // A new screenshot replaces the old preview even when no new one will show.
         thumbnail?.dismiss()
+        thumbnail = nil
+        guard Preferences.showPreview, let image = NSImage(contentsOf: url) else { return }
         let panel = ThumbnailPanel(fileURL: url, image: image)
         panel.present()
         thumbnail = panel
@@ -57,6 +67,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(AppDelegate.captionItem(line, heading: index == 0))
         }
         menu.addItem(.separator())
+
+        showPreviewItem.target = self
+        menu.addItem(showPreviewItem)
+
+        cornerItems = PreviewCorner.allCases.map { corner in
+            let item = NSMenuItem(title: corner.title, action: #selector(chooseCorner(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = corner.rawValue
+            return item
+        }
+        menu.addItem(AppDelegate.submenuItem("Preview Position", items: cornerItems))
+
+        durationItems = Preferences.durationChoices.map { seconds in
+            let item = NSMenuItem(title: "\(Int(seconds)) seconds", action: #selector(chooseDuration(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = seconds
+            return item
+        }
+        menu.addItem(AppDelegate.submenuItem("Preview Duration", items: durationItems))
+
+        trashAfterUseItem.target = self
+        menu.addItem(trashAfterUseItem)
+        menu.addItem(.separator())
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -68,14 +101,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// The status item is the only place to explain what the app does, since it has
-    /// no window and no preferences. Plain unclickable text, read once and ignored after.
+    /// no window. Plain unclickable text, read once and ignored after.
     private static var aboutLines: [String] {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         return [
             "ScreenShotClipboard \(version)",
             "Screenshots copy to your clipboard instantly",
             "and still save to your Desktop.",
-            "Drag or close the preview to discard the file.",
+            "Drag the preview into any app to use it.",
         ]
     }
 
@@ -91,8 +124,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return item
     }
 
+    private static func submenuItem(_ title: String, items: [NSMenuItem]) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: title)
+        items.forEach(submenu.addItem)
+        item.submenu = submenu
+        return item
+    }
+
+    // Submenus are only reachable through the main menu, so refreshing everything
+    // here covers them too.
     func menuWillOpen(_ menu: NSMenu) {
         launchAtLoginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        showPreviewItem.state = Preferences.showPreview ? .on : .off
+        trashAfterUseItem.state = Preferences.trashAfterUse ? .on : .off
+        let corner = Preferences.previewCorner.rawValue
+        for item in cornerItems {
+            item.state = item.representedObject as? String == corner ? .on : .off
+        }
+        let duration = Preferences.previewDuration
+        for item in durationItems {
+            item.state = item.representedObject as? TimeInterval == duration ? .on : .off
+        }
+    }
+
+    /// Auto-enabling asks here; the preview settings mean nothing without a preview.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(chooseCorner(_:)), #selector(chooseDuration(_:)), #selector(toggleTrashAfterUse(_:)):
+            return Preferences.showPreview
+        default:
+            return true
+        }
+    }
+
+    @objc private func toggleShowPreview(_ sender: NSMenuItem) {
+        Preferences.showPreview.toggle()
+        if !Preferences.showPreview {
+            thumbnail?.dismiss()
+            thumbnail = nil
+        }
+    }
+
+    @objc private func chooseCorner(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let corner = PreviewCorner(rawValue: raw) else { return }
+        Preferences.previewCorner = corner
+    }
+
+    @objc private func chooseDuration(_ sender: NSMenuItem) {
+        guard let seconds = sender.representedObject as? TimeInterval else { return }
+        Preferences.previewDuration = seconds
+    }
+
+    @objc private func toggleTrashAfterUse(_ sender: NSMenuItem) {
+        Preferences.trashAfterUse.toggle()
     }
 
     @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {

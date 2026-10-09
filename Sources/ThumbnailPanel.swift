@@ -3,16 +3,19 @@ import AppKit
 /// Stands in for the system's floating thumbnail, which had to be switched off to get
 /// the file — and therefore the clipboard — written immediately.
 ///
-/// Ignore it and the screenshot stays on the Desktop. Drag it out or press the close
-/// button and the Desktop copy goes to the Trash; the clipboard keeps the image either way.
+/// Ignore it and the screenshot stays on the Desktop. Drag it out and the receiver gets a
+/// copy staged in our Caches folder (see DragCache), as a file and as image data. With
+/// "trash after use" on, a drop or the close button then sends the Desktop original to the
+/// Trash; with it off, nothing is trashed and the close button just closes. The clipboard
+/// keeps the image either way. Corner and duration are read from Preferences at creation.
 final class ThumbnailPanel: NSPanel {
-    private static let visibleDuration: TimeInterval = 5
-
     private let fileURL: URL
+    private let visibleDuration = Preferences.previewDuration
     private var autoDismiss: DispatchWorkItem?
 
     init(fileURL: URL, image: NSImage) {
         self.fileURL = fileURL
+        let trashAfterUse = Preferences.trashAfterUse
         let size = ThumbnailPanel.fittedSize(for: image)
         super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -29,15 +32,17 @@ final class ThumbnailPanel: NSPanel {
         animationBehavior = .none
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 
-        let view = ThumbnailView(fileURL: fileURL, image: image,
+        let view = ThumbnailView(fileURL: fileURL, image: image, trashAfterUse: trashAfterUse,
                                  frame: NSRect(origin: .zero, size: size))
-        view.onDiscard = { [weak self] in self?.discard() }
+        view.onDiscard = { [weak self] in
+            trashAfterUse ? self?.discard() : self?.dismiss()
+        }
         view.onDismiss = { [weak self] in self?.dismiss() }
         view.onHoverChanged = { [weak self] hovering in
             hovering ? self?.cancelAutoDismiss() : self?.scheduleAutoDismiss()
         }
         contentView = view
-        positionInCorner()
+        positionInCorner(Preferences.previewCorner)
     }
 
     override var canBecomeKey: Bool { false }
@@ -75,7 +80,7 @@ final class ThumbnailPanel: NSPanel {
         cancelAutoDismiss()
         let work = DispatchWorkItem { [weak self] in self?.dismiss() }
         autoDismiss = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + ThumbnailPanel.visibleDuration, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + visibleDuration, execute: work)
     }
 
     private func cancelAutoDismiss() {
@@ -83,13 +88,21 @@ final class ThumbnailPanel: NSPanel {
         autoDismiss = nil
     }
 
-    private func positionInCorner() {
+    private func positionInCorner(_ corner: PreviewCorner) {
         let pointer = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
         guard let visible = screen?.visibleFrame else { return }
         let margin: CGFloat = 20
-        setFrameOrigin(NSPoint(x: visible.maxX - frame.width - margin,
-                               y: visible.minY + margin))
+        let left = visible.minX + margin
+        let right = visible.maxX - frame.width - margin
+        let bottom = visible.minY + margin
+        let top = visible.maxY - frame.height - margin
+        switch corner {
+        case .bottomRight: setFrameOrigin(NSPoint(x: right, y: bottom))
+        case .bottomLeft: setFrameOrigin(NSPoint(x: left, y: bottom))
+        case .topRight: setFrameOrigin(NSPoint(x: right, y: top))
+        case .topLeft: setFrameOrigin(NSPoint(x: left, y: top))
+        }
     }
 
     private static func fittedSize(for image: NSImage) -> NSSize {
@@ -113,8 +126,10 @@ private final class ThumbnailView: NSView {
     private let closeButton = NSButton()
     private var dragOrigin: NSPoint?
     private var isDragging = false
+    /// Staged on the first drag, then reused: one copy per screenshot is enough.
+    private var dragURL: URL?
 
-    init(fileURL: URL, image: NSImage, frame: NSRect) {
+    init(fileURL: URL, image: NSImage, trashAfterUse: Bool, frame: NSRect) {
         self.fileURL = fileURL
         self.image = image
         super.init(frame: frame)
@@ -139,8 +154,10 @@ private final class ThumbnailView: NSView {
 
         closeButton.frame = NSRect(x: 4, y: bounds.height - 22, width: 18, height: 18)
         closeButton.autoresizingMask = [.minYMargin]
+        let closeLabel = trashAfterUse ? "Move screenshot to Trash" : "Close preview"
         closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill",
-                                    accessibilityDescription: "Discard screenshot")
+                                    accessibilityDescription: closeLabel)
+        closeButton.toolTip = closeLabel
         closeButton.isBordered = false
         closeButton.bezelStyle = .inline
         closeButton.contentTintColor = .secondaryLabelColor
@@ -182,7 +199,20 @@ private final class ThumbnailView: NSView {
         guard travelled > 4 else { return }
         isDragging = true
 
-        let item = NSDraggingItem(pasteboardWriter: fileURL as NSURL)
+        if dragURL == nil {
+            dragURL = DragCache.stage(fileURL) ?? fileURL
+        }
+
+        // A file for apps that take attachments, image data for those that only take
+        // pictures. Both up front: a receiver may ask after this preview is long gone.
+        let source = dragURL ?? fileURL
+        let pasteboardItem = NSPasteboardItem()
+        pasteboardItem.setString(source.absoluteString, forType: .fileURL)
+        if let data = ThumbnailView.pngData(of: source, image: image) {
+            pasteboardItem.setData(data, forType: .png)
+        }
+
+        let item = NSDraggingItem(pasteboardWriter: pasteboardItem)
         item.setDraggingFrame(bounds, contents: image)
         beginDraggingSession(with: [item], event: event, source: self)
     }
@@ -208,11 +238,24 @@ extension ThumbnailView: NSDraggingSource {
         isDragging = false
         dragOrigin = nil
         // Dropping it somewhere is "doing something with it": don't leave a copy behind.
+        // That's safe now the receiver reads the staged copy, not the Desktop file.
         // An empty operation means it went nowhere, so the Desktop copy is all they have.
         if operation.isEmpty {
             onDismiss?()
         } else {
             onDiscard?()
         }
+    }
+}
+
+extension ThumbnailView {
+    /// The file's own bytes when it already is a PNG — no re-encode, no quality change.
+    static func pngData(of url: URL, image: NSImage) -> Data? {
+        if url.pathExtension.lowercased() == "png", let data = try? Data(contentsOf: url) {
+            return data
+        }
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
     }
 }
