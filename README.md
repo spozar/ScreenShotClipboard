@@ -1,4 +1,9 @@
-<h1 align="center">ScreenShotClipboard</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/title-dark.png">
+    <img src="docs/title-light.png" alt="ScreenShotClipboard" width="640">
+  </picture>
+</h1>
 
 <h3 align="center">Screenshot. It's already on your clipboard.</h3>
 
