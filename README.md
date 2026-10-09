@@ -1,5 +1,7 @@
 # ScreenShotClipboard
 
+![ScreenShotClipboard demo](docs/demo.gif)
+
 Press ⌘⇧4. The screenshot is on your clipboard right away, and the file still saves to your Desktop.
 
 macOS gives you one or the other. ⌘⇧⌃4 copies without saving a file, and the "Save to" setting in ⌘⇧5 swaps the destination. Neither is instant while the floating thumbnail is switched on, because that thumbnail holds the capture for about 5 seconds before the file gets written. This app switches it off and shows its own preview instead.
