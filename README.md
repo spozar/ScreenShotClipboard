@@ -1,10 +1,28 @@
-# ScreenShotClipboard
+<h1 align="center">ScreenShotClipboard</h1>
 
-![ScreenShotClipboard demo](docs/demo.gif)
+<h3 align="center">Screenshot. It's already on your clipboard.</h3>
+
+<p align="center">
+  <img src="docs/demo.gif" alt="ScreenShotClipboard demo" width="800">
+</p>
+
+<p align="center">
+  <a href="https://github.com/spozar/ScreenShotClipboard/releases/latest"><img src="https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS"></a>
+</p>
+
+<p align="center">
+  Free and open source · macOS 13+ · Apple Silicon &amp; Intel · Signed &amp; notarized
+</p>
+
+<br>
 
 Press ⌘⇧4. The screenshot is on your clipboard right away, and the file still saves to your Desktop.
 
 macOS gives you one or the other. ⌘⇧⌃4 copies without saving a file, and the "Save to" setting in ⌘⇧5 swaps the destination. Neither is instant while the floating thumbnail is switched on, because that thumbnail holds the capture for about 5 seconds before the file gets written. This app switches it off and shows its own preview instead.
+
+| ⚡️ Instant | 🖼️ Drag and drop | 🎛️ Yours to tune |
+| --- | --- | --- |
+| On the clipboard the moment you let go. No 5 second wait. | Drag the preview into Slack, iMessage or a browser and the real image lands there. | Pick the corner, the duration, or switch the preview off entirely. |
 
 ## Install
 
