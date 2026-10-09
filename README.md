@@ -31,6 +31,14 @@ macOS gives you one or the other. ⌘⇧⌃4 copies without saving a file, and t
 
 ## Install
 
+With [Homebrew](https://brew.sh):
+
+```
+brew install --cask spozar/tap/screenshotclipboard
+```
+
+Or by hand:
+
 1. Download `ScreenShotClipboard.zip` from the [latest release](https://github.com/spozar/ScreenShotClipboard/releases/latest).
 2. Unzip it and move `ScreenShotClipboard.app` into your Applications folder.
 3. Open it. The app is signed and notarized, so it opens like any other. Allow Desktop access when macOS asks: that is where the screenshots land.
