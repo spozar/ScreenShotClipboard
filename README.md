@@ -13,6 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/spozar/ScreenShotClipboard/releases/latest"><img src="https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/Install_with_Homebrew-000000?style=for-the-badge&logo=homebrew&logoColor=FBB040" alt="Install with Homebrew"></a>
 </p>
 
 <p align="center">
